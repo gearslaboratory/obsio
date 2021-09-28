@@ -3,7 +3,7 @@ import itertools
 import json
 import numpy as np
 import pandas as pd
-import urllib
+import urllib.request, urllib.parse, urllib.error
 
 _URL_STN_META = 'http://data.rcc-acis.org/StnMeta'
 
@@ -21,7 +21,7 @@ _ELEMS_TO_ACIS = {'tmin': 'mint', 'tmax': 'maxt', 'prcp': 'pcpn',
                   'tobs_tmin': 'tobs_tmin', 'tobs_tmax': 'tobs_tmax',
                   'tobs_prcp': 'tobs_prcp'}
 
-_ACIS_TO_ELEMS = {a_value: a_key for a_key, a_value in _ELEMS_TO_ACIS.items()}
+_ACIS_TO_ELEMS = {a_value: a_key for a_key, a_value in list(_ELEMS_TO_ACIS.items())}
 
 _f_to_c = lambda f: (f - 32.0) / 1.8
 _in_to_mm = lambda i: i * 25.4

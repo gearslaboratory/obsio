@@ -20,7 +20,7 @@ import string
 import subprocess
 import sys
 import tempfile
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import xarray as xr
 
 _URL_BASE_MADIS = 'https://madis-data.ncep.noaa.gov/%s/data/'
@@ -84,7 +84,7 @@ def _madis_file_to_df(fpath, dly_elem, bbox, temp_path):
 
         return transform_func
 
-    print("Reading " + fpath)
+    print(("Reading " + fpath))
 
     try:
 
@@ -125,8 +125,8 @@ def _madis_file_to_df(fpath, dly_elem, bbox, temp_path):
 
             df = None
 
-            print ("Warning: Unexpected exception reading file: %s ."
-                   " Exception: %s" % (fpath, str(e)))
+            print(("Warning: Unexpected exception reading file: %s ."
+                   " Exception: %s" % (fpath, str(e))))
 
     try:
         is_empty = df.empty
@@ -134,7 +134,7 @@ def _madis_file_to_df(fpath, dly_elem, bbox, temp_path):
         is_empty = True
 
     if is_empty:
-        print("Warning: File does not appear to have any valid data: " + fpath)
+        print(("Warning: File does not appear to have any valid data: " + fpath))
 
     return df
 
@@ -1148,7 +1148,7 @@ def _to_dataframe_MADIS_METAR(ds, dly_elem, bbox=None):
 
     vnames_ds = _combine_vnames(['stationName', 'locationName', 'latitude',
                                  'longitude', 'elevation', 'timeObs'],
-                                dly_elem.vnames, ds.variables.keys())
+                                dly_elem.vnames, list(ds.variables.keys()))
 
     ds = xr.Dataset(ds[vnames_ds])
     ds = xr.decode_cf(ds)
@@ -1172,7 +1172,7 @@ def _to_dataframe_MADIS_METAR(ds, dly_elem, bbox=None):
 
     dly_elem.mask_qa(df, rm_inplace=True)
 
-    df['station_id'] = df.station_id.apply(lambda s: filter(_is_printable, s))
+    df['station_id'] = df.station_id.apply(lambda s: list(filter(_is_printable, s)))
 
     return df
 
@@ -1199,7 +1199,7 @@ def _to_dataframe_MADIS_SAO(ds, dly_elem, bbox=None):
 
     vnames_ds = _combine_vnames(['stationName', 'latitude',
                                  'longitude', 'elevation', 'timeObs'],
-                                dly_elem.vnames, ds.variables.keys())
+                                dly_elem.vnames, list(ds.variables.keys()))
 
     ds = xr.Dataset(ds[vnames_ds])
     ds = xr.decode_cf(ds)
@@ -1224,7 +1224,7 @@ def _to_dataframe_MADIS_SAO(ds, dly_elem, bbox=None):
 
     dly_elem.mask_qa(df, rm_inplace=True)
 
-    df['station_id'] = df.station_id.apply(lambda s: filter(_is_printable, s))
+    df['station_id'] = df.station_id.apply(lambda s: list(filter(_is_printable, s)))
 
     return df
 
@@ -1252,11 +1252,11 @@ def _to_dataframe_MADIS_MESONET(ds, dly_elem, bbox=None):
     vnames_ds = _combine_vnames(['providerId', 'dataProvider', 'stationName',
                                  'latitude', 'longitude', 'elevation',
                                  'observationTime'], dly_elem.vnames,
-                                ds.variables.keys())
+                                list(ds.variables.keys()))
 
     ds = xr.Dataset(ds[vnames_ds])
 
-    for a_var in ds.data_vars.values():
+    for a_var in list(ds.data_vars.values()):
 
         try:
             del a_var.attrs['missing_value']
@@ -1285,7 +1285,7 @@ def _to_dataframe_MADIS_MESONET(ds, dly_elem, bbox=None):
 
     dly_elem.mask_qa(df, rm_inplace=True)
 
-    df['station_id'] = df.station_id.apply(lambda s: filter(_is_printable, s))
+    df['station_id'] = df.station_id.apply(lambda s: list(filter(_is_printable, s)))
 
     return df
 
@@ -1327,11 +1327,11 @@ def _to_dataframe_MADIS_COOP(ds, dly_elem, bbox=None):
     vnames_ds = _combine_vnames(['providerId', 'dataProvider', 'stationName',
                                  'latitude', 'longitude', 'elevation',
                                  'observationTime'], dly_elem.vnames,
-                                ds.variables.keys())
+                                list(ds.variables.keys()))
 
     ds = xr.Dataset(ds[vnames_ds])
 
-    for a_var in ds.data_vars.values():
+    for a_var in list(ds.data_vars.values()):
 
         try:
             del a_var.attrs['missing_value']
@@ -1360,7 +1360,7 @@ def _to_dataframe_MADIS_COOP(ds, dly_elem, bbox=None):
 
     dly_elem.mask_qa(df, rm_inplace=True)
 
-    df['station_id'] = df.station_id.apply(lambda s: filter(_is_printable, s))
+    df['station_id'] = df.station_id.apply(lambda s: list(filter(_is_printable, s)))
 
     return df
 
@@ -1544,11 +1544,11 @@ class MadisObsIO(ObsIO):
             fpaths_fnd = self._fpaths_madis.fpath[self._fpaths_madis.exists]
             fpaths_miss = self._fpaths_madis.fpath[~self._fpaths_madis.exists]
 
-            print ("MadisObsIO: Found the following data files for specified datasets:\n" +
-                   "\n".join(fpaths_fnd.values.astype(np.str)))
+            print(("MadisObsIO: Found the following data files for specified datasets:\n" +
+                   "\n".join(fpaths_fnd.values.astype(np.str))))
 
-            print ("MadisObsIO: Missing data files for specified datasets:\n" +
-                   "\n".join(fpaths_miss.values.astype(np.str)))
+            print(("MadisObsIO: Missing data files for specified datasets:\n" +
+                   "\n".join(fpaths_miss.values.astype(np.str))))
 
             if self.nprocs > 1:
                 # http://stackoverflow.com/questions/24171725/
@@ -1590,8 +1590,8 @@ class MadisObsIO(ObsIO):
 
         if 'time_zone' not in self._df_obs.columns:
 
-            print ("MadisObsIO: Initializing loaded observations "
-                   "for daily aggregation..."),
+            print(("MadisObsIO: Initializing loaded observations "
+                   "for daily aggregation..."), end=' ')
 
             self._df_obs.reset_index(inplace=True)
 
@@ -1644,19 +1644,19 @@ class MadisObsIO(ObsIO):
 
             if self.handle_dups:
 
-                print ("Warning: MadisObsIO: Found %d stations whose location "
+                print(("Warning: MadisObsIO: Found %d stations whose location "
                        "information changed during dates being processed. Will dedupe "
-                       "station ids..." % ndups)
+                       "station ids..." % ndups))
 
                 uniq_stnids = np.array(list(uniquify(stns.station_id.values)))
                 stns['station_id'] = uniq_stnids
 
             else:
 
-                print ("Warning: MadisObsIO: Found %d stations whose location "
+                print(("Warning: MadisObsIO: Found %d stations whose location "
                        "information changed during dates being processed. Only the"
                        " most recent location information for these stations will"
-                       " be returned." % ndups)
+                       " be returned." % ndups))
 
                 stns = stns[~mask_dup_id]
 
@@ -1669,7 +1669,7 @@ class MadisObsIO(ObsIO):
             except UnicodeDecodeError:
                 # If there is a decode error, just return a blank name to be
                 # safe.
-                return u''
+                return ''
 
         stns['station_name'] = stns.station_name.apply(to_unicode)
 
@@ -1760,8 +1760,8 @@ class MadisObsIO(ObsIO):
                 return (next((x for x in sequence if x), '') for
                         sequence in sequences)
 
-            schemes, netlocs, paths, queries, fragments = zip(
-                *(urllib.parse.urlsplit(part) for part in parts))
+            schemes, netlocs, paths, queries, fragments = list(zip(
+                *(urllib.parse.urlsplit(part) for part in parts)))
             scheme, netloc, query, fragment = _first_of_each(
                 schemes, netlocs, queries, fragments)
             path = '/'.join(x.strip('/') for x in paths if x)
@@ -1775,10 +1775,10 @@ class MadisObsIO(ObsIO):
         hrs_grpd = hrs_s.groupby(
             [lambda x: x.year, lambda x: x.month, lambda x: x.day])
 
-        print ("Starting MADIS downloads for %s to %s to local directory "
+        print(("Starting MADIS downloads for %s to %s to local directory "
                "%s..." % (self._utc_hrs.min().strftime("%Y-%m-%d"),
                           self._utc_hrs.max().strftime("%Y-%m-%d"),
-                          self.path_madis_data))
+                          self.path_madis_data)))
 
         def _get_madis_file_list(url, usrname, passwd):
 
@@ -1826,7 +1826,7 @@ class MadisObsIO(ObsIO):
 
         def _wget_madis_file(url, path_local, usrname, passwd):
 
-            print ("WGET: Downloading %s to %s..." % (url, path_local))
+            print(("WGET: Downloading %s to %s..." % (url, path_local)))
 
             if usrname and passwd:
 
@@ -1846,7 +1846,7 @@ class MadisObsIO(ObsIO):
                                                             a_dspath),
                                              self._username, self._password)
 
-            print ("Processing downloads for %s" % a_dspath)
+            print(("Processing downloads for %s" % a_dspath))
 
             for a_day, day_fnames in hrs_grpd:
 
@@ -1866,8 +1866,8 @@ class MadisObsIO(ObsIO):
                     if e.args[0] == 7:
                         raise
 
-                    print ("Warning: Received error trying to list files at "
-                           "%s | %s" % (url_archive_fnames, str(e)))
+                    print(("Warning: Received error trying to list files at "
+                           "%s | %s" % (url_archive_fnames, str(e))))
 
                     archive_fnames = np.array([], dtype=np.str)
 
@@ -1880,12 +1880,12 @@ class MadisObsIO(ObsIO):
 
                 n_avail = avail_archive_fnames.size + avail_rt_fnames.size
 
-                print ("Found %d files out of %d possible for %s on date: "
+                print(("Found %d files out of %d possible for %s on date: "
                        "%s%s%s" % (n_avail, day_fnames.size, a_dspath, syr,
-                                   smth, sday))
-                print ("%d of these files are from the archive. %d are from "
+                                   smth, sday)))
+                print(("%d of these files are from the archive. %d are from "
                        "realtime." % (avail_archive_fnames.size,
-                                      avail_rt_fnames.size))
+                                      avail_rt_fnames.size)))
                 if n_avail > 0:
 
                     path_local = os.path.join(self.path_madis_data, syr, smth,

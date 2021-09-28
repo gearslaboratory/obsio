@@ -85,11 +85,11 @@ class UshcnObsIO(ObsIO):
         return self._a_obs_tarfiles
 
     def _read_stns(self):
-        
-        if self.download_updates and not self._download_run:
 
+        if self.download_updates and not self._download_run:
+    
             self.download_local()
-        
+       
         stns = pd.read_fwf(os.path.join(self.path_ushcn_data,
                                         'ushcn-v2.5-stations.txt'),
                            colspecs=[(0, 11), (12, 20), (21, 30), (31, 37),
@@ -109,7 +109,6 @@ class UshcnObsIO(ObsIO):
             stns = stns[mask_bnds].copy()
 
         stns = stns.set_index('station_id', drop=False)
-
         return stns
 
     @property
@@ -124,10 +123,10 @@ class UshcnObsIO(ObsIO):
         return self._a_obs_prefix_dirs
 
     def download_local(self):
-
         local_path = self.path_ushcn_data
 
         print("Syncing USHCN data to local...")
+        
         subprocess.call(['wget', '-N', '--directory-prefix=' + local_path,
                          _RPATH_USHCN])
 
@@ -143,12 +142,10 @@ class UshcnObsIO(ObsIO):
         self._download_run = True
 
     def _parse_stn_obs(self, stn_id, elem):
-
         fname = os.path.join('.', self._obs_prefix_dirs[elem],
                              '%s.%s.%s' % (stn_id, _ELEMS_TO_USHCN_DATASET[elem],
                                            _ELEMS_TO_USHCN_VNAME[elem]))
         obs_file = self._obs_tarfiles[elem].extractfile(fname)
-
         obs = pd.read_fwf(StringIO(obs_file.read().decode('utf-8')),
                           colspecs=[(12, 16), (17, 17 + 5), (26, 26 + 5),
                                     (35, 35 + 5), (44, 44 + 5), (53, 53 + 5),
@@ -158,10 +155,11 @@ class UshcnObsIO(ObsIO):
                           names=['year'] + ['%.2d' % mth for
                                             mth in np.arange(1, 13)],
                           na_values='-9999')
-
+        
         obs_file.close()
 
-        obs = obs.unstack().swaplevel(0, 1).sortlevel(0, sort_remaining=True)
+        #obs = obs.unstack().swaplevel(0, 1).sortlevel(0, sort_remaining=True)
+        obs = obs.unstack().swaplevel(0, 1).sort_index(level=0, sort_remaining=True)
         obs = obs.reset_index()
         obs['time'] = pd.to_datetime(obs.year.astype(np.str) + obs.level_1,
                                      format='%Y%m')
@@ -189,17 +187,14 @@ class UshcnObsIO(ObsIO):
         # temporarily.
         opt_val = pd.get_option('mode.chained_assignment')
         pd.set_option('mode.chained_assignment', None)
-
         try:
 
             if stns_ids is None:
                 stns_obs = self.stns
             else:
                 stns_obs = self.stns.loc[stns_ids]
-
             obs = [self._parse_stn_obs(a_id, elem) for elem, a_id in
                    itertools.product(self.elems, stns_obs.station_id)]
-
             obs = pd.concat(obs, ignore_index=True)
 
         finally:
@@ -207,6 +202,5 @@ class UshcnObsIO(ObsIO):
             pd.set_option('mode.chained_assignment', opt_val)
 
         obs = obs.set_index(['station_id', 'elem', 'time'])
-        obs = obs.sortlevel(0, sort_remaining=True)
-
+        obs = obs.sort_index(level=0, sort_remaining=True)
         return obs

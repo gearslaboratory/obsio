@@ -9,12 +9,17 @@ import numpy as np
 import os
 import pandas as pd
 import sys
-import urllib
+import urllib.request, urllib.parse, urllib.error
 
-_URL_RAWS_DLY_TIME_SERIES = "http://www.raws.dri.edu/cgi-bin/wea_dysimts.pl?"
-_URL_RAWS_DLY_TIME_SERIES2 = 'http://www.raws.dri.edu/cgi-bin/wea_dysimts2.pl'
-_URL_RAWS_HRLY_TIME_SERIES = "http://www.raws.dri.edu/cgi-bin/wea_list2.pl"
-_URL_RAWS_STN_METADATA = "http://www.raws.dri.edu/cgi-bin/wea_info.pl?"
+#_URL_RAWS_DLY_TIME_SERIES = "http://www.raws.dri.edu/cgi-bin/wea_dysimts.pl?"
+#_URL_RAWS_DLY_TIME_SERIES2 = 'http://www.raws.dri.edu/cgi-bin/wea_dysimts2.pl'
+#_URL_RAWS_HRLY_TIME_SERIES = "http://www.raws.dri.edu/cgi-bin/wea_list2.pl"
+#_URL_RAWS_STN_METADATA = "http://www.raws.dri.edu/cgi-bin/wea_info.pl?"
+
+_URL_RAWS_DLY_TIME_SERIES = "https://wrcc.dri.edu/cgi-bin/wea_dysimts.pl?"
+_URL_RAWS_DLY_TIME_SERIES2 = 'https://wrcc.dri.edu/cgi-bin/wea_dysimts2.pl?'
+_URL_RAWS_HRLY_TIME_SERIES = "https://wrcc.dri.edu/cgi-bin/wea_list2.pl"
+_URL_RAWS_STN_METADATA = "https://wrcc.dri.edu/cgi-bin/wea_info.pl?"
 
 _HRLY_ELEMS = np.array(['tdew', 'tdewmin', 'tdewmax',
                         'vpd', 'vpdmin', 'vpdmax'])
@@ -100,7 +105,7 @@ def _parse_raws_metadata(stn_id):
                 
     except:
         
-        print("COULD NOT LOAD METADATA FOR: ", stn_id)
+        print(("COULD NOT LOAD METADATA FOR: ", stn_id))
         stn_meta = tuple([stn_id] + [None] * 6)
         
     return stn_meta
@@ -277,13 +282,13 @@ def _parse_raws_webform(args):
         
     stn, elems, hrly_pwd, min_hrly_for_dly, start_date, end_date = args
     stn_id = stn.station_id
-    
     values = {'smon': start_date.strftime("%m"),
               'sday': start_date.strftime("%d"),
               'syea': start_date.strftime("%y"),
               'emon': end_date.strftime("%m"),
               'eday': end_date.strftime("%d"),
               'eyea': end_date.strftime("%y"),
+              'obs': 'N',
               'qBasic': "ON",
               'unit': 'M',
               'Ofor': 'A',
@@ -296,25 +301,27 @@ def _parse_raws_webform(args):
               'WsDay': '01',
               'WeMon': '12',
               'WeDay': '31'}
-
+    
+    #print(values)
     data = urllib.parse.urlencode(values)
-    req = urllib.request.Request(_URL_RAWS_DLY_TIME_SERIES2, data)
+    data = data.encode('utf-8')
+    req = urllib.request.Request(_URL_RAWS_DLY_TIME_SERIES2, data)#, data.encode("utf-8"))
+    # MY OWN CODE
+    print(data)
     response = urllib.request.urlopen(req)
     lines = response.readlines()
-    
     # skip first 7 lines
+    #print("LINES\n")
+    #print(lines)
     lines = lines[7:]
-
     obs_ls = []
-
     for line in lines:
-
+        line = line.decode('utf-8')
         if "Copyright" in line:
             break  # EOF reached
         else:
 
             try:
-                
                 vals = line.split()
                 year = int(vals[0][6:])
                 month = int(vals[0][0:2])
@@ -323,7 +330,7 @@ def _parse_raws_webform(args):
 
             except ValueError:
                 
-                print("RAWS: Error in parsing a observation for", stn_id)
+                print(("RAWS: Error in parsing a observation for", stn_id))
                 continue
 
             srad = float(vals[4])
@@ -376,9 +383,9 @@ def _parse_raws_webform(args):
         except ValueError:
             
             # No valid hourly observations                
-            print ("Warning: Password provided, but could not access hourly "
+            print((("Warning: Password provided, but could not access hourly "
                    "humidity observations for station %s. Reverting back to "
-                   "estimates from daily temperature and humidity variables.")% stn_id
+                   "estimates from daily temperature and humidity variables.")% stn_id))
     
     obs = obs[elems].copy()
     
@@ -411,7 +418,7 @@ class WrccRawsObsIO(ObsIO):
         
         # check to make sure there is an entry in min_hrly_for_dly for each
         # hourly elem
-        for a_elem in self._MIN_HRLY_FOR_DLY_DFLT.keys():
+        for a_elem in list(self._MIN_HRLY_FOR_DLY_DFLT.keys()):
 
             try:
 
@@ -447,7 +454,7 @@ class WrccRawsObsIO(ObsIO):
         
         stns = stns.reset_index(drop=True)
         stns = stns.set_index('station_id', drop=False)
-
+        #print(stns)
         return stns
 
     def _read_obs(self, stns_ids=None):
@@ -470,7 +477,8 @@ class WrccRawsObsIO(ObsIO):
                 if self.start_date < start_date_stn:
                     
                     start_date = start_date_stn
-                    
+                else:
+                    return False  
                 end_date = self.end_date
                 
                 # Make sure start_date is not > end_date
@@ -486,10 +494,13 @@ class WrccRawsObsIO(ObsIO):
                 end_date = pd.Timestamp.now()
                 
             return start_date, end_date
-        
+        #print(row[1])
+        print(self.elems)
+        print(self.hrly_pwd)
+        print(self.min_hrly_for_dly)
         iter_stns = [(row[1], self.elems, self.hrly_pwd, self.min_hrly_for_dly) + 
-                     get_start_end(row[0]) for row in stns_obs.iterrows()]
-                
+                     get_start_end(row[0]) for row in stns_obs.iterrows() if get_start_end(row[0]) != False]
+        #print(iter_stns)
         if nprocs > 1:
             
             # http://stackoverflow.com/questions/24171725/
@@ -517,6 +528,6 @@ class WrccRawsObsIO(ObsIO):
             
         df_obs = pd.concat(obs, ignore_index=True)
         df_obs = df_obs.set_index(['station_id', 'elem', 'time'])
-        df_obs = df_obs.sortlevel(0, sort_remaining=True)
+        df_obs = df_obs.sort_index(level=0, sort_remaining=True)
 
         return df_obs

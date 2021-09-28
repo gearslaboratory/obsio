@@ -144,7 +144,7 @@ def _parse_ghcnd_yrly(fpath, elems):
 
         return chk
         
-    print("Loading file %s..." % fpath)
+    print(("Loading file %s..." % fpath))
     
     reader = pd.read_csv(fpath, header=None, usecols=[0, 1, 2, 7], sep=',',
                          names=['station_id', 'time', 'elem', 'tobs'],
@@ -169,7 +169,6 @@ def _parse_ghcnd_stnmeta(fpath_stns, fpath_stninv, elems, start_end=None, bbox=N
                               'network_code', 'hcn_crn_flag'])
     stns['provider'] = 'GHCND'
     stns['sub_provider'] = (stns.network_code.apply(lambda x: _NETWORK_CODE_TO_SUBPROVIDER[x]))
-
     if bbox is not None:
 
         mask_bnds = ((stns.latitude >= bbox.south) & 
@@ -190,21 +189,28 @@ def _parse_ghcnd_stnmeta(fpath_stns, fpath_stninv, elems, start_end=None, bbox=N
     stn_inv = stn_inv.reset_index()
 
     stns = pd.merge(stns, stn_inv, on='station_id')
-
+    #stns.to_csv('/home/adrianom/Documents/code/test/stns.csv')
+    #print(start_end)
     if start_end is not None:
 
         start_date, end_date = start_end
-
+        #print("start_date.year")
+        #print(start_date.year)
+        #print("end_date.year")
+        #print(end_date.year)
+        #print("stns.start_year")
+        #print(stns.start_year)
+        #print("stns.end_year")
+        #print(stns.end_year)
         mask_por = (((start_date.year <= stns.start_year) & 
                      (stns.start_year <= end_date.year)) | 
                     ((stns.start_year <= start_date.year) & 
                      (start_date.year <= stns.end_year)))
-
+        #print(type(mask_por))
         stns = stns[mask_por].copy()
-
+    #mask_por.to_csv('/home/adrianom/Documents/code/test/mask_por.csv')
     stns = stns.reset_index(drop=True)
     stns = stns.set_index('station_id', drop=False)
-
     return stns
 
 def _build_tobs_hdfs(path_out, fpaths_yrly, elems, nprocs=1):
@@ -212,7 +218,7 @@ def _build_tobs_hdfs(path_out, fpaths_yrly, elems, nprocs=1):
     fpaths_yrly = np.array(fpaths_yrly)
     nprocs = nprocs if fpaths_yrly.size >= nprocs else fpaths_yrly.size
         
-    stn_nums = pd.DataFrame([(np.nan, np.nan)], columns=['station_id', 'station_num'])
+    stn_nums = pd.DataFrame([("", np.nan)], columns=['station_id', 'station_num'])
     num_inc = 0 
     
     first_append = {elem:True for elem in elems}
@@ -263,7 +269,7 @@ def _build_tobs_hdfs(path_out, fpaths_yrly, elems, nprocs=1):
             
                 hdfs[elem].append('df_tobs', grp, data_columns=['time'], index=False)
         
-        for store in hdfs.values():
+        for store in list(hdfs.values()):
             store.close()
         
         return num_inc, stn_nums
@@ -423,9 +429,9 @@ class GhcndBulkObsIO(ObsIO):
         if downloaded_tar:
             
             # Gunzip tar file
-            print ("Unzipping and extracting files from %s. "
+            print(("Unzipping and extracting files from %s. "
                    "This will take several minutes..." % 
-                   os.path.join(local_path, 'ghcnd_all.tar.gz'))
+                   os.path.join(local_path, 'ghcnd_all.tar.gz')))
             
             with tarfile.open(os.path.join(local_path, 'ghcnd_all.tar.gz'), 'r') as targhcnd:
             
@@ -585,7 +591,7 @@ class GhcndBulkObsIO(ObsIO):
             pd.set_option('mode.chained_assignment', opt_val)
 
         df_obs = df_obs.set_index(['station_id', 'elem', 'time'])
-        df_obs = df_obs.sortlevel(0, sort_remaining=True)
+        df_obs = df_obs.sort_index(level=0, sort_remaining=True)
 
         return df_obs
 
@@ -606,7 +612,7 @@ class GhcndObsIO(ObsIO):
         fbuf_stns = open_remote_file('https://www1.ncdc.noaa.gov/'
                                      'pub/data/ghcn/daily/ghcnd-stations.txt')
         fbuf_stninv = open_remote_file('https://www1.ncdc.noaa.gov/'
-                                       'pub/data/ghcn/daily/ghcnd-inventory.txt')
+                                      'pub/data/ghcn/daily/ghcnd-inventory.txt')
         
         if self.has_start_end_dates:
             start_end = (self.start_date, self.end_date)
@@ -679,6 +685,6 @@ class GhcndObsIO(ObsIO):
             pd.set_option('mode.chained_assignment', opt_val)
 
         df_obs = df_obs.set_index(['station_id', 'elem', 'time'])
-        df_obs = df_obs.sortlevel(0, sort_remaining=True)
+        df_obs = df_obs.sort_index(level=0, sort_remaining=True)
 
         return df_obs

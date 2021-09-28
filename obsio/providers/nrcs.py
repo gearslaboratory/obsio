@@ -9,6 +9,7 @@ from urllib.request import HTTPSHandler
 import numpy as np
 import pandas as pd
 import ssl
+import math
 
 _URL_AWDB_WSDL = 'https://www.wcc.nrcs.usda.gov/awdbWebService/services?WSDL'
 
@@ -43,6 +44,28 @@ _ELEMS_TO_NRCS_HOURLY = {'tmin': [],
                          'tdewmax':['DPTP', 'RHUMV', 'RHUM', 'TAVG', 'TOBS'],
                          'rhmax':['RHUMX', 'RHUMN', 'RHUMV', 'RHUM', 'DPTP', 'TAVG', 'TOBS'],
                          'vpdmax':['DPTP', 'RHUMV', 'RHUM', 'TAVG', 'TOBS']}
+
+def textToString(df, columns):
+    ''' Convert entries in a column in a dataframe to a string '''
+    ''' astype() method will not work on Text object types '''
+
+    output_list = list()
+
+    for column in columns:
+
+        for row in df[column]:
+
+            row = str(row)
+
+            output_list.append(row)
+ 
+        df = df.drop(columns=column)
+
+        df[column] = output_list
+
+        output_list.clear()
+
+    return df
 
 def _get_daily_nrcs_elems(elems):
     
@@ -361,23 +384,22 @@ def _execute_awdb_call(a_func, ntries_max=3, sleep_sec=5, **kwargs):
             break
 
         except Exception as e:
-
             ntries += 1
 
             if ntries == ntries_max:
 
-                raise
+                #raise
+                return False
 
             else:
 
-                print ("WARNING: Received error executing AWDB function %s:"
+                print(("WARNING: Received error executing AWDB function %s:"
                        " %s. Sleeping %d seconds and trying again." % 
-                       (str(a_func.method.name), str(e), sleep_sec))
+                       (str(a_func.method.name), str(e), sleep_sec)))
 
                 sleep(sleep_sec)
 
     return a_result
-
 
 class _NrcsHourly():
 
@@ -474,19 +496,17 @@ class _NrcsDaily():
         self.nrcs_elems = nrcs_elems
         self._client = awdb_client
 
-    def read_obs(self, start_date, end_date, stns):
+    def getDataBatch(self, stnTriplets, a_elem, begin, end):
+        ''' Added by Adriano Matos to fix overloading getStationMetadataMultiple function'''
+        data_list = list()
 
-        begin = "%d-%.2d-%.2d"%(start_date.year, start_date.month, start_date.day)
-        end = (end_date + pd.Timedelta(days=1))
-        end = "%d-%.2d-%.2d"%(end.year, end.month, end.day)
-        
-        obs_all = []
-
-        for a_elem in self.nrcs_elems:
-
-            datas = _execute_awdb_call(self._client.service.getData,
-                                       stationTriplets=list(stns.
-                                                            stationTriplet),
+        for station in list(stnTriplets):
+            #print(station)
+            #print(a_elem)
+            #print(begin)
+            #print(end)
+            data = _execute_awdb_call(self._client.service.getData,
+                                       stationTriplets=station,
                                        elementCd=[a_elem],
                                        ordinal=1,
                                        duration='DAILY',
@@ -494,13 +514,49 @@ class _NrcsDaily():
                                        beginDate=begin,
                                        endDate=end,
                                        alwaysReturnDailyFeb29=False)
+            if(data != False):
 
+                for item in data:
+
+                    data_list.append(item)
+
+                data.clear()
+            else:
+                pass
+
+        return data_list 
+
+    def read_obs(self, start_date, end_date, stns):
+
+        begin = "%d-%.2d-%.2d"%(start_date.year, start_date.month, start_date.day)
+        end = (end_date + pd.Timedelta(days=1))
+        end = "%d-%.2d-%.2d"%(end.year, end.month, end.day)
+        obs_all = []
+
+        for a_elem in self.nrcs_elems:
+            datas = self.getDataBatch(stns.stationTriplet, a_elem, begin, end)
+            print(list(stns.stationTriplet))
+            #datas = _execute_awdb_call(self._client.service.getData,
+             #                          stationTriplets=list(stns.
+              #                                              stationTriplet),
+               #                        elementCd=[a_elem],
+                #                       ordinal=1,
+                 #                      duration='DAILY',
+                  #                     getFlags=False,
+                   #                    beginDate=begin,
+                    #                   endDate=end,
+                     #                  alwaysReturnDailyFeb29=False)
+            print(type(datas))
+            #break
             obs_elem = []
 
             for a_data in datas:
 
                 try:
                     obs_stn = pd.DataFrame(a_data.values, columns=['obs_value'])
+                    #obs_stn = textToString(obs_stn, ['time'])
+                    a_data.beginDate = str(a_data.beginDate)
+                    a_data.endDate = str(a_data.endDate)
                     obs_stn['time'] = pd.date_range(a_data.beginDate, a_data.endDate)
                     obs_stn['stationTriplet'] = a_data.stationTriplet
                     obs_stn['obs_value'] = _convert_funcs[a_elem](obs_stn['obs_value'])
@@ -628,11 +684,40 @@ class NrcsObsIO(ObsIO):
         self._nrcs_dly = _NrcsDaily(self._client, self._elems_nrcs_dly)
         self._nrcs_hrly = _NrcsHourly(self._client, self._elems_nrcs_hrly)
         
-        self._elem_funcs = np.unique(np.array([_ELEM_EXTRACT_FUNCS[a_elem] for
-                                               a_elem in self.elems]))
+        self._elem_funcs = np.array([_ELEM_EXTRACT_FUNCS[a_elem] for
+                                               a_elem in self.elems])
+	#self._elem_funcs = np.unique(np.array([_ELEM_EXTRACT_FUNCS[a_elem] for#a_elem in self.elems]))
+     
 
+    def getStationMeta(self, stnTriplets):
+        ''' Added by Adriano Matos to fix overloading getStationMetadataMultiple function'''
+        max_length = len(stnTriplets)
+
+        start_range = 0
+
+        end_range = 500
+
+        iterator = math.ceil(max_length / end_range)
+
+        full_stn_meta = list()
+
+        for i in range(iterator):
+
+            stn_metas = _execute_awdb_call(self._client.service.
+                                           getStationMetadataMultiple,
+                                           stationTriplets=stnTriplets[start_range:end_range])
+            for x in stn_metas:
+
+                full_stn_meta.append(x)
+
+            start_range = start_range + 500
+
+            end_range = end_range + 500
+
+        return full_stn_meta  
+        
     def _read_stns(self):
-
+        
         if self.bbox is None:
 
             stn_triplets = _execute_awdb_call(self._client.service.getStations,
@@ -650,12 +735,16 @@ class NrcsObsIO(ObsIO):
                                               maxLongitude=self.bbox.east,
                                               networkCds=['SNTL', 'SCAN'],
                                               elementCds=self._elems_nrcs_all)
-
+    
         print("NrcsObsIO: Getting station metadata...")
-        stn_metas = _execute_awdb_call(self._client.service.
-                                       getStationMetadataMultiple,
-                                       stationTriplets=stn_triplets)
-
+        
+        #stn_metas = [_execute_awdb_call(self._client.service.
+        #                               getStationMetadataMultiple,
+        #                               stationTriplets=item) for item in stn_triplets]
+        #stn_metas = _execute_awdb_call(self._client.service.
+        #                              getStationMetadataMultiple,
+        #                               stationTriplets=stn_triplets[:500])
+        stn_metas = self.getStationMeta(stnTriplets=stn_triplets)
         stn_tups = [self._stationMetadata_to_tuple(a) for a in stn_metas]
         df_stns = pd.DataFrame(stn_tups, columns=self._stnmeta_attrs)
 
@@ -663,6 +752,10 @@ class NrcsObsIO(ObsIO):
                                        'name': 'station_name'})
         stns['station_id'] = stns.station_id.fillna(stns.stationTriplet)
         stns = stns[~stns.station_id.isnull()]
+        stns = textToString(stns, ['beginDate', 'endDate'])
+
+
+
         stns['beginDate'] = pd.to_datetime(stns.beginDate)
         stns['endDate'] = pd.to_datetime(stns.endDate)
         stns['elevation'] = _ft_to_m(stns.elevation)
@@ -740,7 +833,7 @@ class NrcsObsIO(ObsIO):
 
         obs_merge = obs_merge.drop('stationTriplet', axis=1)
         obs_merge = obs_merge.set_index(['station_id', 'elem', 'time'])
-        obs_merge = obs_merge.sortlevel(0, sort_remaining=True)
+        obs_merge = obs_merge.sort_index(level=0, sort_remaining=True)
         return obs_merge
 
     def _stationMetadata_to_tuple(self, a_meta):

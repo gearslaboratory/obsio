@@ -10,7 +10,7 @@ from pytz.exceptions import NonExistentTimeError, AmbiguousTimeError
 import numpy as np
 import pandas as pd
 import sys
-import urllib
+import urllib.request, urllib.parse, urllib.error
 
 _RPATH_ISD = 'ftp://ftp.ncdc.noaa.gov/pub/data/noaa/'
 _RPATH_ISD_LITE = 'ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-lite/'
@@ -197,7 +197,7 @@ def _download_obs(args):
 
     except Exception as e:
         
-        print("Error for station "+stn_id+": "+str(e))
+        print(("Error for station "+stn_id+": "+str(e)))
         
         
 

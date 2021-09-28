@@ -69,8 +69,8 @@ class ObsIO(object):
 
         elif elems_not_avail.size > 0:
 
-            print ("Warning: %s does not support the following requested "
-                   "elements: %s" % (cls.__name__, ",".join(elems_not_avail)))
+            print(("Warning: %s does not support the following requested "
+                   "elements: %s" % (cls.__name__, ",".join(elems_not_avail))))
 
         return elems_avail
 
@@ -117,7 +117,7 @@ class ObsIO(object):
     def _read_obs(self, stn_ids):
         raise NotImplementedError
     
-    def read_obs(self, stn_ids=None, data_structure='stacked'):
+    def read_obs(self, stn_ids=None, data_structure='stacked', coords=False):
         """Access observations for a set of stations.
 
         Parameters
@@ -166,7 +166,6 @@ class ObsIO(object):
             return obs
         
         elif data_structure == 'array':
-            
             obs = obs.unstack(level=1)
             obs.columns = [col[1] for col in obs.columns.values]
             obs = xr.Dataset.from_dataframe(obs.swaplevel(0,1))
@@ -177,8 +176,13 @@ class ObsIO(object):
                 stns = self.stns.loc[stn_ids]
             
             #include station metadata
-            obs.merge(xr.Dataset.from_dataframe(stns), inplace=True)
-            
+            xr_stns = xr.Dataset.from_dataframe(stns)
+ 
+            if coords is True:
+
+                obs['latitude'] = xr_stns['latitude']
+                obs['longitude'] = xr_stns['longitude']
+
             return obs
         
         else:
@@ -256,7 +260,7 @@ class ObsIO(object):
     
         store.create_table_index('obs', optlevel=9, kind='full')
         store.create_table_index('obs', columns=['time'], optlevel=9, kind='full')
-        
+        print(store.keys())
         store.close()
     
     

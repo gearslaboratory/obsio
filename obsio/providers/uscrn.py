@@ -89,7 +89,7 @@ class UscrnObsIO(ObsIO):
             
             for yr in yrs_stn:
                 
-                print(a_id,yr)
+                print((a_id,yr))
                 
                 url = ('https://www1.ncdc.noaa.gov/pub/data/uscrn/products/'
                        'hourly02/%d/CRNH0203-%d-%s.txt')%(yr,yr,a_id)
